@@ -25,12 +25,13 @@ SECRET_KEY = 'django-insecure-j4vcq=7e1$7a#51ou9&&-5u)3kr!1oi=z!8sd(9(6bcug1s2c!
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ['*']
 
 
 # Application definition
 
 INSTALLED_APPS = [
+    'oauth2_provider',
     'rest_framework',
     'libraryApp',
     'django.contrib.admin',
@@ -50,6 +51,15 @@ MIDDLEWARE = [
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
+
+REST_FRAMEWORK = {
+   'DEFAULT_AUTHENTICATION_CLASSES': [
+       'oauth2_provider.contrib.rest_framework.OAuth2Authentication'
+   ],
+   'DEFAULT_PERMISSION_CLASSES': [
+       'rest_framework.permissions.IsAuthenticated'
+   ]
+}
 
 ROOT_URLCONF = 'libraryApp.urls'
 
