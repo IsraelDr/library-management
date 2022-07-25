@@ -4,7 +4,7 @@ from django.http import JsonResponse
 from .models import Book, Loan, Fine
 from .serializers import BookSerializer,SignUpSerializer,LoanSerializer,FineSerializer
 from rest_framework import generics
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import IsAuthenticated,IsAdminUser
 from .permissions import IsAuthenticatedOrCreate
 from django.contrib.auth.models import User
 from django.contrib.auth import (authenticate,login,logout)
@@ -12,13 +12,11 @@ from oauth2_provider.views.generic import ProtectedResourceView
 from rest_framework.views import APIView
 
 class SignUp(generics.CreateAPIView):
-   queryset = User.objects.all()
-   serializer_class = SignUpSerializer
-   permission_classes = (IsAuthenticatedOrCreate,)
+    queryset = User.objects.all()
+    serializer_class = SignUpSerializer
+    permission_classes = (IsAuthenticatedOrCreate,)
 
-
-
-class getBooks(APIView):#add filter todo
+class getBooks(APIView):
     permission_classes = (IsAuthenticated,)
     def get(self,request):
         search_by_author=request.GET.get('author')
@@ -26,15 +24,15 @@ class getBooks(APIView):#add filter todo
         search_by_availability=request.GET.get('isAvailable')
         books = Book.objects.all()
         if search_by_author is not None:
-            books = books.filter(author_name=search_by_author)
+            books = books.filter(author_name=search_by_author.strip())
         if search_by_title is not None:
-            books = books.filter(title=search_by_title)
-        if search_by_availability is not None:
-            books = books.filter(in_place=search_by_availability)
+            books = books.filter(title=search_by_title.strip())
+        if search_by_availability == 'True':
+            books = books.filter(in_place=True)
         serializer = BookSerializer(books,many=True)
         return JsonResponse({"Books":serializer.data})
 
-class getLoanedBooks(APIView):#add filter todo
+class getLoanedBooks(APIView):
     permission_classes = (IsAuthenticated,)
     def get(self,request):
         if request.user.is_staff:
@@ -45,50 +43,53 @@ class getLoanedBooks(APIView):#add filter todo
             serializer = LoanSerializer(loans,many=True)
         return JsonResponse({"LoanedBooks":serializer.data})
 
-class AddBook(APIView):# todo
-    permission_classes = (IsAuthenticated,)
-    def put(self,request):
-        _barcode=request.POST['barcode']
-        _author_name=request.POST['author']
-        _title=request.POST['title']
-        _isbn=request.POST['isbn']
-        _in_place = True
-        newbook=Book.objects.create(barcode=_barcode,author_name=_author_name,title=_title,isbn=_isbn,in_place=_in_place)
-        serializer = BookSerializer(newbook,many=False)
-        return JsonResponse({"Created Book":serializer.data})
+class AddBook(generics.CreateAPIView):
+    queryset = Book.objects.all()
+    serializer_class = BookSerializer
+    permission_classes = (IsAuthenticated,IsAdminUser)
 
-class DeleteBook(APIView):# todo
-    permission_classes = (IsAuthenticated,)
+class DeleteBook(APIView):
+    permission_classes = (IsAuthenticated,IsAdminUser)
     def delete(self,request):
-        _id=request.POST['id']
-        book=Book.objects.get(id=_id)
+        _barcode=request.POST.get('barcode')
+        if _barcode is None or _barcode == '':
+            return JsonResponse({"message":"The barcode is not valid!"},status=404)
+        try:
+            book=Book.objects.get(barcode=_barcode.strip())
+        except Book.DoesNotExist:
+            return JsonResponse({"message":"The book couldnt be found!"},status=404)
         book.delete()
-        return JsonResponse({"errormessage":"The book was deleted successfully!"})
+        return JsonResponse({"message":"The book was deleted successfully!"})
+        
 
-class loanBooks(APIView):# todo
+class loanBooks(APIView):
     permission_classes = (IsAuthenticated,)
     def post(self,request):
         items_on_loan = Loan.objects.filter(isLoaned=True,userid=request.user.id)
         if items_on_loan.count() >= 10:
-            return JsonResponse({"errormessage":"Maximum of allowed loans exceeded!"})
-        _barcode=request.POST['barcode']
-        is_item_loanable = Book.objects.filter(barcode=_barcode,in_place=True).first()
+            return JsonResponse({"message":"Maximum of allowed loans exceeded!"},status=405)
+        _barcode=request.POST.get('barcode')
+        if _barcode is None:
+            return JsonResponse({"message":"The barcode is not valid!"},status=404)
+        is_item_loanable = Book.objects.filter(barcode=_barcode.strip(),in_place=True).first()
         if is_item_loanable is None:
-            return JsonResponse({"errormessage":"Item not available for loan"})
+            return JsonResponse({"message":"Item not available for loan"},status=405)
         new_loan = Loan.objects.create(barcode=is_item_loanable,isLoaned=True,loan_date=datetime.now(),
             due_date=datetime.now()+timedelta(days=14),userid=request.user)
         is_item_loanable.in_place = False
         is_item_loanable.save()
-        return JsonResponse({"successmessage":"Item was loaned successfully!"})
+        return JsonResponse({"message":"Item was loaned successfully!"})
 
-class returnBooks(APIView):# todo
+class returnBooks(APIView):
     permission_classes = (IsAuthenticated,)
     def post(self,request):
-        _barcode=request.POST['barcode']
-        book = Book.objects.filter(barcode=_barcode,in_place=False).first()
+        _barcode=request.POST.get('barcode')
+        if _barcode is None:
+            return JsonResponse({"message":"The barcode is not valid!"},status=404)
+        book = Book.objects.filter(barcode=_barcode.strip(),in_place=False).first()
         loan = Loan.objects.filter(barcode=book,isLoaned=True,userid=request.user).first()
         if book is None or loan is None:
-            return JsonResponse({"errormessage":"Item not returnable"})
+            return JsonResponse({"message":"Item not returnable"},status=405)
         book.in_place = True
         book.save()
         loan.return_date=datetime.now()
@@ -96,9 +97,10 @@ class returnBooks(APIView):# todo
         loan.save()
         if loan.return_date.date() > loan.due_date:
             Fine.objects.create(loan=loan)
-        return JsonResponse({"successmessage":"Item was returned successfully!"})
+            return JsonResponse({"message":"Item was returned successfully. Fine was created!"})
+        return JsonResponse({"message":"Item was returned successfully!"})
 
-class getFines(APIView):# todo
+class getFines(APIView):
     permission_classes = (IsAuthenticated,)
     def get(self,request):
         data={}

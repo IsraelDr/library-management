@@ -28,5 +28,5 @@ class FineSerializer(serializers.ModelSerializer):
 class SignUpSerializer(serializers.ModelSerializer):
    class Meta:
        model = User
-       fields = ('username', 'password')
+       fields = ('username', 'password','email','is_staff')
        write_only_fields = ('password',)
