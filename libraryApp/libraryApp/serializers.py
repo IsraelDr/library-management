@@ -26,7 +26,10 @@ class FineSerializer(serializers.ModelSerializer):
         fields = ['id','payed_date']
 
 class SignUpSerializer(serializers.ModelSerializer):
-   class Meta:
-       model = User
-       fields = ('username', 'password','email','is_staff')
-       write_only_fields = ('password',)
+    class Meta:
+        model = User
+        fields = ('username', 'password','email','is_staff')
+        write_only_fields = ('password',)
+
+    def create(self,validated_data):
+        return User.objects.create_user(**validated_data)
