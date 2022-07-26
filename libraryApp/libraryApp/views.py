@@ -39,7 +39,7 @@ class getLoanedBooks(APIView):
             loans = Loan.objects.filter(isLoaned=True)
             serializer = LoanSerializer(loans,many=True)
         else:
-            loans = Loan.objects.filter(isLoaned=True,userid=request.user.id)
+            loans = Loan.objects.filter(isLoaned=True,user=request.user)
             serializer = LoanSerializer(loans,many=True)
         return JsonResponse({"LoanedBooks":serializer.data})
 
@@ -65,7 +65,7 @@ class DeleteBook(APIView):
 class loanBooks(APIView):
     permission_classes = (IsAuthenticated,)
     def post(self,request):
-        items_on_loan = Loan.objects.filter(isLoaned=True,userid=request.user.id)
+        items_on_loan = Loan.objects.filter(isLoaned=True,user=request.user)
         if items_on_loan.count() >= 10:
             return JsonResponse({"message":"Maximum of allowed loans exceeded!"},status=405)
         _barcode=request.POST.get('barcode')
@@ -74,8 +74,8 @@ class loanBooks(APIView):
         is_item_loanable = Book.objects.filter(barcode=_barcode.strip(),in_place=True).first()
         if is_item_loanable is None:
             return JsonResponse({"message":"Item not available for loan"},status=405)
-        new_loan = Loan.objects.create(barcode=is_item_loanable,isLoaned=True,loan_date=datetime.now(),
-            due_date=datetime.now()+timedelta(days=14),userid=request.user)
+        new_loan = Loan.objects.create(book=is_item_loanable,isLoaned=True,loan_date=datetime.now(),
+            due_date=datetime.now()+timedelta(days=14),user=request.user)
         is_item_loanable.in_place = False
         is_item_loanable.save()
         return JsonResponse({"message":"Item was loaned successfully!"})
@@ -87,7 +87,7 @@ class returnBooks(APIView):
         if _barcode is None:
             return JsonResponse({"message":"The barcode is not valid!"},status=404)
         book = Book.objects.filter(barcode=_barcode.strip(),in_place=False).first()
-        loan = Loan.objects.filter(barcode=book,isLoaned=True,userid=request.user).first()
+        loan = Loan.objects.filter(book=book,isLoaned=True,user=request.user).first()
         if book is None or loan is None:
             return JsonResponse({"message":"Item not returnable"},status=405)
         book.in_place = True
@@ -104,7 +104,7 @@ class getFines(APIView):
     permission_classes = (IsAuthenticated,)
     def get(self,request):
         data={}
-        loans = Loan.objects.filter(userid=request.user)
+        loans = Loan.objects.filter(user=request.user)
         i=0
         for _loan in loans:
             try:
@@ -113,7 +113,7 @@ class getFines(APIView):
                 continue
             serializer = FineSerializer(fine,many=False)
             augmented_serializer_data = list(serializer.data)
-            augmented_serializer_data.append({'amount': (_loan.return_date - _loan.due_date).days*0.1})
+            augmented_serializer_data.append({'amount': round((_loan.return_date - _loan.due_date).days*0.1,2)})
             data[i]=augmented_serializer_data
             i+=1
         return JsonResponse({"Fines":data})

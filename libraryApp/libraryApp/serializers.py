@@ -13,17 +13,17 @@ class UserSerializer(serializers.ModelSerializer):
         fields = ['id','username']
 
 class LoanSerializer(serializers.ModelSerializer):
-    barcode = BookSerializer(many = False)
-    userid = UserSerializer(many=False)
+    book = BookSerializer(many = False)
+    user = UserSerializer(many=False)
     class Meta:
         model = Loan
-        fields = ['id','barcode','userid']
+        fields = ['id','book','user']
 
 class FineSerializer(serializers.ModelSerializer):
-    #loan = LoanSerializer(many=False)
+    loan = LoanSerializer(many=False)
     class Meta:
         model = Fine
-        fields = ['id','payed_date']
+        fields = ['id','payed_date','loan']
 
 class SignUpSerializer(serializers.ModelSerializer):
     class Meta:
