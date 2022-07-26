@@ -12,7 +12,9 @@ git clone https://github.com/IsraelDr/library-management.git
 ```
 python -m venv .venv
 
-. .\.venv\bin\activate (might be . .\.venv\script\activate)
+cd .venv
+
+source bin/activate
 ```
 #### The following dependencies might be needed:
 ```
